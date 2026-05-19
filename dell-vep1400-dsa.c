@@ -31,17 +31,16 @@ static int __init vep_i2c_write_init(void)
     struct i2c_adapter *adap;
     int ret;
 
-    pr_info("vep-i2c-write: bus=%u addr=0x%02x reg1=0x%02x reg2=0x%02x val=0x%02x\n",
-            bus_num, i2c_addr, reg1, reg2, val);
+    pr_info("vep-dsa: Turning off tx-disable via setting i2c registers...\n");
 
     adap = i2c_get_adapter(bus_num);
     if (!adap) {
-        pr_err("vep-i2c-write: failed to get i2c adapter %u\n", bus_num);
+        pr_err("vep-dsa: failed to get i2c adapter %u\n", bus_num);
         return -ENODEV;
     }
 
     if (!i2c_check_functionality(adap, I2C_FUNC_SMBUS_BYTE_DATA)) {
-        pr_err("vep-i2c-write: adapter does not support SMBus byte data\n");
+        pr_err("vep-dsa: adapter does not support SMBus byte data\n");
         i2c_put_adapter(adap);
         return -EOPNOTSUPP;
     }
@@ -51,26 +50,21 @@ static int __init vep_i2c_write_init(void)
 
     if (IS_ERR(vep_i2c_client)) {
         ret = PTR_ERR(vep_i2c_client);
-        pr_err("vep-i2c-write: failed to create i2c client: %d\n", ret);
+        pr_err("vep-dsa: failed to create i2c client: %d\n", ret);
         return ret;
     }
 
-    ret = i2c_smbus_write_byte_data(vep_i2c_client, reg1 & 0xff, val & 0xff);
-    if (ret < 0) {
-        pr_err("vep-i2c-write: i2c write reg1 failed: %d\n", ret);
+    if (i2c_smbus_write_byte_data(vep_i2c_client, 0x10, 0x0) < 0 || \
+        i2c_smbus_write_byte_data(vep_i2c_client, 0x11, 0x0) < 0) {
+        pr_err("vep-dsa: i2c write failed\n");
         i2c_unregister_device(vep_i2c_client);
         vep_i2c_client = NULL;
-        return ret;
-    }
-    ret = i2c_smbus_write_byte_data(vep_i2c_client, reg2 & 0xff, val & 0xff);
-    if (ret < 0) {
-        pr_err("vep-i2c-write: i2c write reg2 failed: %d\n", ret);
-        i2c_unregister_device(vep_i2c_client);
-        vep_i2c_client = NULL;
-        return ret;
+        return -EIO;
     }
 
-    pr_info("vep-i2c-write: write ok\n");
+    pr_info("vep-dsa: SFP TX power enabled.\n");
+    i2c_unregister_device(vep_i2c_client);
+    vep_i2c_client = NULL;
     return 0;
 }
 
@@ -81,7 +75,7 @@ static void __exit vep_i2c_write_exit(void)
         vep_i2c_client = NULL;
     }
 
-    pr_info("vep-i2c-write: unloaded\n");
+    pr_info("vep-dsa: unloaded\n");
 }
 
 module_init(vep_i2c_write_init);
@@ -89,4 +83,4 @@ module_exit(vep_i2c_write_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Hansel Tsao");
-MODULE_DESCRIPTION("Example kernel module equivalent to i2cset");
+MODULE_DESCRIPTION("VEP1400 DSA I2C write module to enable SFP TX power");
